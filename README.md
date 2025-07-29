@@ -3,13 +3,13 @@
 ![publish](https://github.com/tvwenger/bayes_hfs/actions/workflows/publish.yml/badge.svg)
 ![tests](https://github.com/tvwenger/bayes_hfs/actions/workflows/tests.yml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/bayes-hfs/badge/?version=latest)](https://bayes-hfs.readthedocs.io/en/latest/?badge=latest)
-[![codecov](https://codecov.io/gh/tvwenger/bayes_hfs/graph/badge.svg?token=M352CU79JR)](https://codecov.io/gh/tvwenger/bayes_hfs)
+[![codecov](https://codecov.io/gh/tvwenger/bayes_hfs/graph/badge.svg?token=hwSV0QwQIa)](https://codecov.io/gh/tvwenger/bayes_hfs)
 
 A Bayesian Molecular Hyperfine Spectroscopy Model
 
 `bayes_hfs` implements a probabilistic model to infer the physics of the interstellar medium from molecular hyperfine spectroscopy observations.
 
-This replaces a similar model tuned for CN and $^{13}$CN hyperfine spectroscopy observations called [`bayes_cn_hfs`](https://github.com/tvwenger/bayes_ch_hfs). `bayes_hfs` aims to be a more general purpose model.
+This replaces a similar model tuned for CN and $^{13}$CN hyperfine spectroscopy observations called [`bayes_cn_hfs`](https://github.com/tvwenger/bayes_cn_hfs). `bayes_hfs` aims to be a more general purpose model.
 
 - [Installation](#installation)
   - [Basic Installation](#basic-installation)
