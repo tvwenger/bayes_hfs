@@ -246,12 +246,12 @@ class HFSRatioModel(BaseModel):
             )
             CTEX_weights_mol1 = pm.Deterministic(
                 f"CTEX_weights_{self.mol1}",
-                CTEX_weights_mol1 / pt.sum(CTEX_weights_mol1, axis=1)[:, None],
+                CTEX_weights_mol1,
                 dims=["cloud", f"state_{self.mol1}"],
             )
 
             if assume_CTEX1:
-                # Excitation temperature (K, shape: clouds
+                # Excitation temperature (K, shape: clouds)
                 Tex_mol1 = pm.Deterministic(
                     f"Tex_{self.mol1}", 10.0**log10_Tex_CTEX, dims="cloud"
                 )
@@ -262,7 +262,11 @@ class HFSRatioModel(BaseModel):
                 )
 
                 # State column densities (cm-2; shape: clouds, states)
-                N_state_mol1 = Ntot1[:, None] * CTEX_weights_mol1
+                N_state_mol1 = (
+                    Ntot1[:, None]
+                    * CTEX_weights_mol1
+                    / pt.sum(CTEX_weights_mol1, axis=1, keepdims=True)
+                )
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu_mol1 = pt.stack(
@@ -274,9 +278,7 @@ class HFSRatioModel(BaseModel):
             else:
                 # CTEX concentration (shape: clouds, state)
                 CTEX_concentration_mol1 = (
-                    len(self.mol1_data["states"]["state"])
-                    * CTEX_weights_mol1
-                    / pt.power(10.0, log10_CTEX_variance)[:, None]
+                    CTEX_weights_mol1 / pt.power(10.0, log10_CTEX_variance)[:, None]
                 )
 
                 # Dirichlet state fraction (shape: cloud, state)
@@ -289,12 +291,13 @@ class HFSRatioModel(BaseModel):
                 weights_mol1 = pt.clip(
                     weights_mol1_norm, clip_weights, 1.0 - clip_weights
                 )
-                weights_mol1 = weights_mol1 / pt.sum(
-                    weights_mol1, axis=1, keepdims=True
-                )
 
                 # State column densities (cm-2; shape: clouds, states)
-                N_state_mol1 = Ntot1[:, None] * weights_mol1
+                N_state_mol1 = (
+                    Ntot1[:, None]
+                    * weights_mol1
+                    / pt.sum(weights_mol1, axis=1, keepdims=True)
+                )
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu_mol1 = pt.stack(
@@ -360,7 +363,7 @@ class HFSRatioModel(BaseModel):
             )
             CTEX_weights_mol2 = pm.Deterministic(
                 f"CTEX_weights_{self.mol2}",
-                CTEX_weights_mol2 / pt.sum(CTEX_weights_mol2, axis=1)[:, None],
+                CTEX_weights_mol2,
                 dims=["cloud", f"state_{self.mol2}"],
             )
 
@@ -376,7 +379,11 @@ class HFSRatioModel(BaseModel):
                 )
 
                 # State column densities (cm-2; shape: clouds, states)
-                N_state_mol2 = Ntot2[:, None] * CTEX_weights_mol2
+                N_state_mol2 = (
+                    Ntot2[:, None]
+                    * CTEX_weights_mol2
+                    / pt.sum(CTEX_weights_mol2, axis=1, keepdims=True)
+                )
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu_mol2 = pt.stack(
@@ -388,9 +395,7 @@ class HFSRatioModel(BaseModel):
             else:
                 # CTEX concentration (shape: clouds, state)
                 CTEX_concentration_mol2 = (
-                    len(self.mol2_data["states"]["state"])
-                    * CTEX_weights_mol2
-                    / pt.power(10.0, log10_CTEX_variance)[:, None]
+                    CTEX_weights_mol2 / pt.power(10.0, log10_CTEX_variance)[:, None]
                 )
 
                 # Dirichlet state fraction (shape: cloud, state)
@@ -403,12 +408,13 @@ class HFSRatioModel(BaseModel):
                 weights_mol2 = pt.clip(
                     weights_mol2_norm, clip_weights, 1.0 - clip_weights
                 )
-                weights_mol2 = weights_mol2 / pt.sum(
-                    weights_mol2, axis=1, keepdims=True
-                )
 
                 # State column densities (cm-2; shape: clouds, states)
-                N_state_mol2 = Ntot2[:, None] * weights_mol2
+                N_state_mol2 = (
+                    Ntot2[:, None]
+                    * weights_mol2
+                    / pt.sum(weights_mol2, axis=1, keepdims=True)
+                )
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu_mol2 = pt.stack(
