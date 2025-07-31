@@ -181,7 +181,7 @@ class HFSModel(BaseModel):
             )
             CTEX_weights = pm.Deterministic(
                 "CTEX_weights",
-                CTEX_weights / pt.sum(CTEX_weights, axis=1)[:, None],
+                CTEX_weights,
                 dims=["cloud", "state"],
             )
 
@@ -195,7 +195,11 @@ class HFSModel(BaseModel):
                 )
 
                 # State column densities (cm-2; shape: clouds, states)
-                N_state = Ntot[:, None] * CTEX_weights
+                N_state = (
+                    Ntot[:, None]
+                    * CTEX_weights
+                    / pt.sum(CTEX_weights, axis=1, keepdims=True)
+                )
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu = pt.stack([N_state[:, idx] for idx in self.mol_data["state_u_idx"]])
@@ -214,9 +218,7 @@ class HFSModel(BaseModel):
 
                 # CTEX concentration (shape: clouds, state)
                 CTEX_concentration = (
-                    len(self.model.coords["state"])
-                    * CTEX_weights
-                    / pt.power(10.0, log10_CTEX_variance)[:, None]
+                    CTEX_weights / pt.power(10.0, log10_CTEX_variance)[:, None]
                 )
 
                 # Dirichlet state fraction (shape: cloud, state)
@@ -227,10 +229,10 @@ class HFSModel(BaseModel):
                 )
                 # Prevent weights=0
                 weights = pt.clip(weights, clip_weights, 1.0 - clip_weights)
-                weights = weights / pt.sum(weights, axis=1)[:, None]
-
                 # State column densities (cm-2; shape: clouds, states)
-                N_state = Ntot[:, None] * weights
+                N_state = (
+                    Ntot[:, None] * weights / pt.sum(weights, axis=1, keepdims=True)
+                )
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu = pt.stack([N_state[:, idx] for idx in self.mol_data["state_u_idx"]])

@@ -373,7 +373,7 @@ def radiative_transfer(
     TR_clouds_attenuated = TR_clouds * pt.exp(-sum_tau[:, :-1])
 
     # Emission spectrum (shape S)
-    TR_on = TR_bg_attenuated + TR_clouds_attenuated.sum(axis=1)
+    TR_on = TR_bg_attenuated + pt.sum(TR_clouds_attenuated, axis=1)
 
     # ON - OFF
     return TR_on - TR_bg
