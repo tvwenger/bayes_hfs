@@ -26,8 +26,7 @@ Installation
 
    notebooks/hfs_model
    notebooks/hfs_model_anomalies
-   notebooks/hfs_ratio_model
-   notebooks/cn_ratio_anomalies
+   notebooks/optimization
 
 .. toctree::
    :maxdepth: 2

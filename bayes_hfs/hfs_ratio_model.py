@@ -288,8 +288,9 @@ class HFSRatioModel(BaseModel):
                     dims=["cloud", f"state_{self.mol1}"],
                 )
                 # Prevent weights=0
-                weights_mol1 = pt.clip(
-                    weights_mol1_norm, clip_weights, 1.0 - clip_weights
+                weights_mol1 = pm.Deterministic(
+                    f"weights_{self.mol1}",
+                    pt.clip(weights_mol1_norm, clip_weights, 1.0 - clip_weights),
                 )
 
                 # State column densities (cm-2; shape: clouds, states)
@@ -405,8 +406,9 @@ class HFSRatioModel(BaseModel):
                     dims=["cloud", f"state_{self.mol2}"],
                 )
                 # Prevent weights=0
-                weights_mol2 = pt.clip(
-                    weights_mol2_norm, clip_weights, 1.0 - clip_weights
+                weights_mol2 = pm.Deterministic(
+                    f"weights_{self.mol2}",
+                    pt.clip(weights_mol2_norm, clip_weights, 1.0 - clip_weights),
                 )
 
                 # State column densities (cm-2; shape: clouds, states)
