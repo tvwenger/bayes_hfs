@@ -31,9 +31,6 @@ Install with `pip` in a `conda` virtual environment:
 ```
 conda create --name bayes_hfs -c conda-forge pymc pip
 conda activate bayes_hfs
-# Due to a bug in arviz, this fork is temporarily necessary
-# See: https://github.com/arviz-devs/arviz/issues/2437
-pip install git+https://github.com/tvwenger/arviz.git@plot_pair_reference_labels
 pip install bayes_hfs
 ```
 

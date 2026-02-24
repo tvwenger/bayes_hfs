@@ -1,7 +1,7 @@
 name: bayes_hfs-dev
 channels:
   - conda-forge
-  - defaults
+  - nodefaults
 dependencies:
   - ipython
   - jupyter
