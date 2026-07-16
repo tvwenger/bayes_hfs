@@ -93,7 +93,7 @@ class HFSModel(BaseModel):
         clip_weights: Optional[float] = 1.0e-9,
         clip_tau: Optional[float] = -10.0,
         prior_fwhm_L: Optional[float] = None,
-        prior_baseline_coeffs: Optional[dict[str, Iterable[float]]] = None,
+        **kwargs,
     ):
         """Add priors and deterministics to the model
 
@@ -130,13 +130,11 @@ class HFSModel(BaseModel):
             by default None, where
             fwhm_L ~ HalfNormal(sigma=prior_fwhm_L)
             If None, the line profile is assumed Gaussian.
-        prior_baseline_coeffs : Optional[dict[str, Iterable[float]]], optional
-            Prior distribution on the normalized baseline polynomial coefficients, by default None.
-            Keys are dataset names and values are lists of length `baseline_degree+1`. If None, use
-            `[1.0]*(baseline_degree+1)` for each dataset.
+        **kwargs : Additional keyword arguments passed to `add_baseline_priors`
         """
+
         # add polynomial baseline priors
-        super().add_baseline_priors(prior_baseline_coeffs=prior_baseline_coeffs)
+        super().add_baseline_priors(**kwargs)
 
         with self.model:
             # total column density (cm-2; shape: clouds)
