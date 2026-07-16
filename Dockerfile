@@ -1,7 +1,8 @@
 FROM continuumio/miniconda3:latest
 
-RUN conda install conda --yes
-RUN conda install -c conda-forge pymc cxx-compiler pip --yes
-RUN pip cache purge
-RUN pip install git+https://github.com/tvwenger/arviz.git@plot_pair_reference_labels
-RUN pip install --no-cache-dir bayes_hfs
+COPY environment.yml /environment.yml
+RUN conda env create -f /environment.yml
+ENV PATH="/opt/conda/envs/bayes_hfs-dev/bin:$PATH"
+ENV CONDA_DEFAULT_ENV="bayes_hfs-dev"
+RUN echo "conda activate bayes_hfs-dev" >> ~/.bashrc
+RUN pip install bayes_hfs
