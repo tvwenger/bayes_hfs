@@ -22,8 +22,10 @@ Installation
    :caption: Tutorials:
 
    notebooks/hfs_model
+   notebooks/hfs_model_noise
    notebooks/hfs_model_anomalies
    notebooks/hfs_ratio_model
+   notebooks/hfs_ratio_model_noise
    notebooks/optimization
 
 .. toctree::

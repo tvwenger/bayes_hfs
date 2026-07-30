@@ -93,6 +93,7 @@ class HFSModel(BaseModel):
         clip_weights: Optional[float] = 1.0e-9,
         clip_tau: Optional[float] = -10.0,
         prior_fwhm_L: Optional[float] = None,
+        prior_noise: Optional[dict[str, float]] = None,
         **kwargs,
     ):
         """Add priors and deterministics to the model
@@ -130,6 +131,11 @@ class HFSModel(BaseModel):
             by default None, where
             fwhm_L ~ HalfNormal(sigma=prior_fwhm_L)
             If None, the line profile is assumed Gaussian.
+        prior_noise : Optional[dict[str, float]], optional
+            Prior distribution on spectral rms, by default None.
+            If None, the noise is set by the the supplied data noise properties. Otherwise, keys
+            are dataset names and values set the prior distribution, where
+            noise ~ HalfNormal(sigma=prior)
         **kwargs : Additional keyword arguments passed to `add_baseline_priors`
         """
 
@@ -286,6 +292,11 @@ class HFSModel(BaseModel):
             else:
                 _ = pm.Data("fwhm_L", np.zeros(self.n_clouds), dims="cloud")
 
+            # Spectral rms (K)
+            if prior_noise is not None:
+                for key in prior_noise.keys():
+                    _ = pm.HalfNormal(f"noise_{key}", sigma=prior_noise[key])
+
     def add_likelihood(self):
         """Add likelihood to the model. SpecData key must be "observation"."""
         # Predict baseline models
@@ -323,6 +334,10 @@ class HFSModel(BaseModel):
                 _ = pm.Normal(
                     label,
                     mu=predicted,
-                    sigma=dataset.noise,
+                    sigma=(
+                        self.model[f"noise_{label}"]
+                        if f"noise_{label}" in self.model
+                        else dataset.noise
+                    ),
                     observed=dataset.brightness,
                 )

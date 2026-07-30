@@ -60,10 +60,15 @@ def test_hfs_ratio_model():
     model.add_likelihood()
     assert model._validate()
 
-    # Non-CTEX, Lorentzian line profile
+    # Non-CTEX, Lorentzian line profile, noise
     model = HFSRatioModel(
         _MOL_DATA_12CN, _MOL_DATA_13CN, mol_keys, data, n_clouds=1, baseline_degree=1
     )
-    model.add_priors(assume_CTEX1=False, assume_CTEX2=False, prior_fwhm_L=1.0)
+    model.add_priors(
+        assume_CTEX1=False,
+        assume_CTEX2=False,
+        prior_fwhm_L=1.0,
+        prior_noise={"12CN": 1.0, "13CN": 1.0},
+    )
     model.add_likelihood()
     assert model._validate()
