@@ -36,8 +36,10 @@ def test_hfs_model():
     model.add_likelihood()
     assert model._validate()
 
-    # Non-CTEX, Lorentzian
+    # Non-CTEX, Lorentzian, noise
     model = HFSModel(_MOL_DATA, data, n_clouds=1, baseline_degree=1)
-    model.add_priors(assume_CTEX=False, prior_fwhm_L=1.0)
+    model.add_priors(
+        assume_CTEX=False, prior_fwhm_L=1.0, prior_noise={"observation": 1.0}
+    )
     model.add_likelihood()
     assert model._validate()
