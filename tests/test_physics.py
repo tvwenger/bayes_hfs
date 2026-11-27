@@ -2,7 +2,7 @@
 test_physics.py
 tests for physics.py
 
-Copyright(C) 2024 by
+Copyright(C) 2024-2026 by
 Trey V. Wenger; tvwenger@gmail.com
 This code is licensed under MIT license (see LICENSE for details)
 """

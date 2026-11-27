@@ -2,7 +2,7 @@
 hfs_model.py
 HFSModel definition
 
-Copyright(C) 2024-2025 by
+Copyright(C) 2024-2026 by
 Trey V. Wenger; tvwenger@gmail.com
 This code is licensed under MIT license (see LICENSE for details)
 """
@@ -74,13 +74,15 @@ class HFSModel(BaseModel):
                 "velocity": r"$V_{\rm LSR}$ (km s$^{-1}$)",
                 "log10_Tex_CTEX": r"$\log_{10} T_{\rm ex, CTEX}$ (K)",
                 "Tex": r"$T_{\rm ex}$ (K)",
-                "log10_CTEX_variance": r"$\log_{10} \sigma_{\rm CTEX}^2$",
+                "CTEX_sigma": r"$\sigma_{\rm CTEX}$",
                 "tau": r"$\tau$",
                 "tau_total": r"$\tau_{\rm tot}$",
                 "TR": r"$T_R$ (K)",
                 "fwhm_L": r"$\Delta V_L$ (km s$^{-1}$)",
             }
         )
+        for key in self.data.keys():
+            self.var_name_map[f"noise_{key}"] = r"$\sigma_{\rm " + key + r"}$"
 
     def add_priors(
         self,
@@ -89,7 +91,7 @@ class HFSModel(BaseModel):
         prior_velocity: Iterable[float] = [-10.0, 10.0],
         prior_log10_Tex_CTEX: Iterable[float] = [0.75, 0.1],
         assume_CTEX: bool = True,
-        prior_log10_CTEX_variance: float = [-4.0, 1.0],
+        prior_CTEX_sigma: float = 1.0,
         clip_weights: Optional[float] = 1.0e-9,
         clip_tau: Optional[float] = -10.0,
         prior_fwhm_L: Optional[float] = None,
@@ -117,11 +119,12 @@ class HFSModel(BaseModel):
             log10_Tex_CTEX ~ Normal(mu=prior[0], sigma=prior[1])
         assume_CTEX : bool, optional
             Assume that every transition has the same excitation temperature, by default True.
-        prior_log10_CTEX_variance : Iterable[float], optional
-            Prior distribution on the log10_variance of departures from CTEX, by default [-4.0, 1.0], where
-            log10_CTEX_variance ~ prior[0] + HalfNormal(sigma=prior[1])
-            stat_weights ~ Dirichlet(a=len(states)*CTEX_stat_weights/CTEX_variance)
-            where CTEX_stat_weights are derived from Tex
+        prior_CTEX_sigma : float, optional
+            Prior distribution on statistical weight deviation from CTEX, by default 0.1, where
+            CTEX_sigma ~ Exponential(sscake=prior)
+            log_odds ~ Normal(mu=0, sigma=1)
+            stat_weights ~ softmax(CTEX_stat_weights + CTEX_sigma/sqrt(len(states)) * log_odds)
+            where CTEX_stat_weights are derived from Tex.
         clip_weights : Optional[float], optional
             Clip weights between [clip, 1.0-clip], by default 1.0e-9
         clip_tau : Optional[float], optional
@@ -183,6 +186,7 @@ class HFSModel(BaseModel):
                 self.mol_data["states"]["E"][None, :],
                 10.0 ** log10_Tex_CTEX[:, None],
             )
+            CTEX_weights = CTEX_weights / pt.sum(CTEX_weights, axis=1, keepdims=True)
             CTEX_weights = pm.Deterministic(
                 "CTEX_weights",
                 CTEX_weights,
@@ -199,44 +203,41 @@ class HFSModel(BaseModel):
                 )
 
                 # State column densities (cm-2; shape: clouds, states)
-                N_state = (
-                    Ntot[:, None]
-                    * CTEX_weights
-                    / pt.sum(CTEX_weights, axis=1, keepdims=True)
-                )
+                N_state = Ntot[:, None] * CTEX_weights
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu = pt.stack([N_state[:, idx] for idx in self.mol_data["state_u_idx"]])
                 Nl = pt.stack([N_state[:, idx] for idx in self.mol_data["state_l_idx"]])
             else:
-                # CTEX variance (inverse concentration) (shape: clouds)
-                log10_CTEX_variance_norm = pm.HalfNormal(
-                    "log10_CTEX_variance_norm", sigma=1.0, dims="cloud"
-                )
-                log10_CTEX_variance = pm.Deterministic(
-                    "log10_CTEX_variance",
-                    prior_log10_CTEX_variance[0]
-                    + prior_log10_CTEX_variance[1] * log10_CTEX_variance_norm,
+                # CTEX sigma (shape: clouds)
+                CTEX_sigma = pm.Exponential(
+                    "CTEX_sigma",
+                    scale=prior_CTEX_sigma,
                     dims="cloud",
                 )
 
-                # CTEX concentration (shape: clouds, state)
-                CTEX_concentration = (
-                    CTEX_weights / pt.power(10.0, log10_CTEX_variance)[:, None]
+                # CTEX log odds (shape: clouds, state)
+                CTEX_log_odds = pm.Normal(
+                    "CTEX_log_odds", mu=0.0, sigma=1.0, dims=["cloud", "state"]
                 )
 
-                # Dirichlet state fraction (shape: cloud, state)
-                weights = pm.Dirichlet(
+                # State weights (shape: cloud, state)
+                weights = pm.Deterministic(
                     "weights",
-                    a=CTEX_concentration,
+                    pt.special.softmax(
+                        pt.log(CTEX_weights)
+                        + CTEX_sigma[:, None]
+                        / np.sqrt(len(self.mol_data["states"]))
+                        * CTEX_log_odds
+                    ),
                     dims=["cloud", "state"],
                 )
                 # Prevent weights=0
                 weights = pt.clip(weights, clip_weights, 1.0 - clip_weights)
+                weights = weights / pt.sum(weights, axis=1, keepdims=True)
+
                 # State column densities (cm-2; shape: clouds, states)
-                N_state = (
-                    Ntot[:, None] * weights / pt.sum(weights, axis=1, keepdims=True)
-                )
+                N_state = Ntot[:, None] * weights
 
                 # Upper state column densities (cm-2; shape: transitions, clouds)
                 Nu = pt.stack([N_state[:, idx] for idx in self.mol_data["state_u_idx"]])
@@ -300,7 +301,7 @@ class HFSModel(BaseModel):
     def add_likelihood(self):
         """Add likelihood to the model. SpecData key must be "observation"."""
         # Predict baseline models
-        baseline_models = self.predict_baseline()
+        baseline_models, ripple_models = self.predict_baseline()
 
         # Predict all spectra
         for label, dataset in self.data.items():
@@ -326,18 +327,44 @@ class HFSModel(BaseModel):
                 )
             )
 
-            # Add baseline model
+            # Add baseline models
             predicted = predicted_line + baseline_models[label]
+            if self.ripples:
+                predicted_ripples = predicted + ripple_models[label]
 
-            with self.model:
-                # Evaluate likelihood
-                _ = pm.Normal(
-                    label,
-                    mu=predicted,
-                    sigma=(
-                        self.model[f"noise_{label}"]
-                        if f"noise_{label}" in self.model
-                        else dataset.noise
-                    ),
-                    observed=dataset.brightness,
-                )
+                with self.model:
+                    # Evaluate likelihood
+                    like = pm.Normal.dist(
+                        mu=predicted,
+                        sigma=(
+                            self.model[f"noise_{label}"]
+                            if f"noise_{label}" in self.model
+                            else dataset.noise
+                        ),
+                    )
+                    ripples_like = pm.Normal.dist(
+                        mu=predicted_ripples,
+                        sigma=(
+                            self.model[f"noise_{label}"]
+                            if f"noise_{label}" in self.model
+                            else dataset.noise
+                        ),
+                    )
+                    _ = pm.Mixture(
+                        label,
+                        w=self.model[f"ripple_{label}_weight"],
+                        comp_dists=[like, ripples_like],
+                        observed=dataset.brightness,
+                    )
+            else:
+                with self.model:
+                    _ = pm.Normal(
+                        label,
+                        mu=predicted,
+                        sigma=(
+                            self.model[f"noise_{label}"]
+                            if f"noise_{label}" in self.model
+                            else dataset.noise
+                        ),
+                        observed=dataset.brightness,
+                    )
