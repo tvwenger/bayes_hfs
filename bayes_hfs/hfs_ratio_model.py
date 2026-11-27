@@ -93,9 +93,9 @@ class HFSRatioModel(BaseModel):
                 "fwhm2": r"$\Delta V^2$ (km$^{2}$ s$^{-2}$)",
                 "velocity": r"$v_{\rm LSR}$ (km s$^{-1}$)",
                 "log10_Tex_CTEX": r"$\log_{10} T_{{\rm ex, CTEX}}$ (K)",
-                f"Tex_{self.mol1}": r"$T_{\rm ex" + f"{self.mol1}" + r"}$ (K)",
-                f"Tex_{self.mol2}": r"$T_{\rm ex" + f"{self.mol2}" + r"}$ (K)",
-                "CTEX_concentration": r"$\alpha_{\rm CTEX}$",
+                f"Tex_{self.mol1}": r"$T_{\rm ex, " + f"{self.mol1}" + r"}$ (K)",
+                f"Tex_{self.mol2}": r"$T_{\rm ex, " + f"{self.mol2}" + r"}$ (K)",
+                "CTEX_sigma": r"$\sigma_{\rm CTEX}$",
                 f"tau_{self.mol1}": r"$\tau_{\rm " + f"{self.mol1}" + r"$",
                 f"tau_{self.mol2}": r"$\tau_{\rm " + f"{self.mol2}" + r"$",
                 f"tau_total_{self.mol1}": r"$\tau_{\rm tot, " + f"{self.mol1}" + r"}$",
@@ -110,6 +110,8 @@ class HFSRatioModel(BaseModel):
                 "fwhm_L": r"$\Delta V_L$ (km s$^{-1}$)",
             }
         )
+        for key in self.data.keys():
+            self.var_name_map[f"noise_{key}"] = r"$\sigma_{\rm " + key + r"}$"
 
     def add_priors(
         self,
@@ -120,7 +122,7 @@ class HFSRatioModel(BaseModel):
         prior_log10_Tex_CTEX: Iterable[float] = [0.75, 0.25],
         assume_CTEX1: bool = True,
         assume_CTEX2: bool = True,
-        prior_CTEX_concentration: float = [2.0, 0.01],
+        prior_CTEX_sigma: float = 1.0,
         clip_weights: Optional[float] = 1.0e-9,
         clip_tau: Optional[float] = -10.0,
         prior_fwhm_L: Optional[float] = None,
@@ -153,10 +155,11 @@ class HFSRatioModel(BaseModel):
             Assume that every transition of the first species has the same excitation temperature, by default True.
         assume_CTEX2 : bool, optional
             Assume that every transition of the second species has the same excitation temperature, by default True.
-        prior_CTEX_concentration : Iterable[float], optional
-            Prior distribution on the CTEX concentration, by default [2.0, 0.01], where
-            CTEX_concentration ~ Gamma(alpha=prior[0], beta=prior[1])
-            stat_weights ~ Dirichlet(a=len(states) * CTEX_stat_weights * CTEX_concentration)
+        prior_CTEX_sigma : float, optional
+            Prior distribution on statistical weight deviation from CTEX, by default 0.1, where
+            CTEX_sigma ~ Exponential(sscake=prior)
+            log_odds ~ Normal(mu=0, sigma=1)
+            stat_weights ~ softmax(CTEX_stat_weights + CTEX_sigma/sqrt(len(states)) * log_odds)
             where CTEX_stat_weights are derived from Tex.
         clip_weights : Optional[float], optional
             Clip weights between [clip, 1.0-clip], by default 1.0e-9
@@ -233,11 +236,10 @@ class HFSRatioModel(BaseModel):
 
             # CTEX variance (inverse concentration) (shape: clouds)
             if not (assume_CTEX1 and assume_CTEX2):
-                # CTEX concentration (shape: clouds)
-                CTEX_concentration = pm.Gamma(
-                    "CTEX_concentration",
-                    alpha=prior_CTEX_concentration[0],
-                    beta=prior_CTEX_concentration[1],
+                # CTEX sigma (shape: clouds)
+                CTEX_sigma = pm.Exponential(
+                    "CTEX_sigma",
+                    scale=prior_CTEX_sigma,
                     dims="cloud",
                 )
 
@@ -278,12 +280,23 @@ class HFSRatioModel(BaseModel):
                     [N_state_mol1[:, idx] for idx in self.mol1_data["state_l_idx"]]
                 )
             else:
-                # Dirichlet state fraction (shape: cloud, state)
-                weights_mol1 = pm.Dirichlet(
+                # CTEX log odds (shape: clouds, state)
+                CTEX_log_odds_mol1 = pm.Normal(
+                    f"CTEX_log_odds_{self.mol1}",
+                    mu=0.0,
+                    sigma=1.0,
+                    dims=["cloud", f"state_{self.mol1}"],
+                )
+
+                # State weights (shape: cloud, state)
+                weights_mol1 = pm.Deterministic(
                     f"weights_{self.mol1}",
-                    a=len(self.mol1_data["states"])
-                    * CTEX_weights_mol1
-                    * CTEX_concentration[:, None],
+                    pt.special.softmax(
+                        pt.log(CTEX_weights_mol1)
+                        + CTEX_sigma[:, None]
+                        / np.sqrt(len(self.mol1_data["states"]))
+                        * CTEX_log_odds_mol1
+                    ),
                     dims=["cloud", f"state_{self.mol1}"],
                 )
                 # Prevent weights=0
@@ -388,12 +401,23 @@ class HFSRatioModel(BaseModel):
                     [N_state_mol2[:, idx] for idx in self.mol2_data["state_l_idx"]]
                 )
             else:
-                # Dirichlet state fraction (shape: cloud, state)
-                weights_mol2 = pm.Dirichlet(
+                # CTEX log odds (shape: clouds, state)
+                CTEX_log_odds_mol2 = pm.Normal(
+                    f"CTEX_log_odds_{self.mol2}",
+                    mu=0.0,
+                    sigma=1.0,
+                    dims=["cloud", f"state_{self.mol2}"],
+                )
+
+                # State weights (shape: cloud, state)
+                weights_mol2 = pm.Deterministic(
                     f"weights_{self.mol2}",
-                    a=len(self.mol2_data["states"])
-                    * CTEX_weights_mol2
-                    * CTEX_concentration[:, None],
+                    pt.special.softmax(
+                        pt.log(CTEX_weights_mol2)
+                        + CTEX_sigma[:, None]
+                        / np.sqrt(len(self.mol2_data["states"]))
+                        * CTEX_log_odds_mol2
+                    ),
                     dims=["cloud", f"state_{self.mol2}"],
                 )
                 # Prevent weights=0

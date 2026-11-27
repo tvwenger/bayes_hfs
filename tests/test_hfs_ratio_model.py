@@ -2,7 +2,7 @@
 test_hfs_ratio_model.py
 tests for HFSRatioModel
 
-Copyright(C) 2024-2025 by
+Copyright(C) 2024-2026 by
 Trey V. Wenger; tvwenger@gmail.com
 This code is licensed under MIT license (see LICENSE for details)
 """
@@ -70,5 +70,19 @@ def test_hfs_ratio_model():
         prior_fwhm_L=1.0,
         prior_noise={"12CN": 1.0, "13CN": 1.0},
     )
+    model.add_likelihood()
+    assert model._validate()
+
+    # ripples
+    model = HFSRatioModel(
+        _MOL_DATA_12CN,
+        _MOL_DATA_13CN,
+        mol_keys,
+        data,
+        n_clouds=1,
+        baseline_degree=1,
+        ripples=True,
+    )
+    model.add_priors()
     model.add_likelihood()
     assert model._validate()

@@ -2,7 +2,7 @@
 test_hfs_model.py
 Tests for HFSModel
 
-Copyright(C) 2024-2025 by
+Copyright(C) 2024-2026 by
 Trey V. Wenger; tvwenger@gmail.com
 This code is licensed under MIT license (see LICENSE for details)
 """
@@ -41,5 +41,11 @@ def test_hfs_model():
     model.add_priors(
         assume_CTEX=False, prior_fwhm_L=1.0, prior_noise={"observation": 1.0}
     )
+    model.add_likelihood()
+    assert model._validate()
+
+    # ripples
+    model = HFSModel(_MOL_DATA, data, n_clouds=1, baseline_degree=1, ripples=True)
+    model.add_priors()
     model.add_likelihood()
     assert model._validate()

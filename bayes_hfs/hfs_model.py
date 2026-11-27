@@ -74,13 +74,15 @@ class HFSModel(BaseModel):
                 "velocity": r"$V_{\rm LSR}$ (km s$^{-1}$)",
                 "log10_Tex_CTEX": r"$\log_{10} T_{\rm ex, CTEX}$ (K)",
                 "Tex": r"$T_{\rm ex}$ (K)",
-                "CTEX_variance": r"$\sigma^2_{\rm CTEX}$",
+                "CTEX_sigma": r"$\sigma_{\rm CTEX}$",
                 "tau": r"$\tau$",
                 "tau_total": r"$\tau_{\rm tot}$",
                 "TR": r"$T_R$ (K)",
                 "fwhm_L": r"$\Delta V_L$ (km s$^{-1}$)",
             }
         )
+        for key in self.data.keys():
+            self.var_name_map[f"noise_{key}"] = r"$\sigma_{\rm " + key + r"}$"
 
     def add_priors(
         self,
@@ -89,7 +91,7 @@ class HFSModel(BaseModel):
         prior_velocity: Iterable[float] = [-10.0, 10.0],
         prior_log10_Tex_CTEX: Iterable[float] = [0.75, 0.1],
         assume_CTEX: bool = True,
-        prior_CTEX_variance: float = [1.0, 3.0],
+        prior_CTEX_sigma: float = 1.0,
         clip_weights: Optional[float] = 1.0e-9,
         clip_tau: Optional[float] = -10.0,
         prior_fwhm_L: Optional[float] = None,
@@ -117,11 +119,11 @@ class HFSModel(BaseModel):
             log10_Tex_CTEX ~ Normal(mu=prior[0], sigma=prior[1])
         assume_CTEX : bool, optional
             Assume that every transition has the same excitation temperature, by default True.
-        prior_CTEX_variance : Iterable[float], optional
-            Prior distribution on the CTEX variance, by default [3.0, 1.0], where
-            CTEX_variance ~ Beta(alpha=prior[0], beta=prior[1])
-            CTEX_concentration = (1 - CTEX_variance)/CTEX_variance
-            stat_weights ~ Dirichlet(a=len(states) * CTEX_stat_weights * CTEX_concentration)
+        prior_CTEX_sigma : float, optional
+            Prior distribution on statistical weight deviation from CTEX, by default 0.1, where
+            CTEX_sigma ~ Exponential(sscake=prior)
+            log_odds ~ Normal(mu=0, sigma=1)
+            stat_weights ~ softmax(CTEX_stat_weights + CTEX_sigma/sqrt(len(states)) * log_odds)
             where CTEX_stat_weights are derived from Tex.
         clip_weights : Optional[float], optional
             Clip weights between [clip, 1.0-clip], by default 1.0e-9
@@ -207,23 +209,27 @@ class HFSModel(BaseModel):
                 Nu = pt.stack([N_state[:, idx] for idx in self.mol_data["state_u_idx"]])
                 Nl = pt.stack([N_state[:, idx] for idx in self.mol_data["state_l_idx"]])
             else:
-                # CTEX variance (shape: clouds)
-                CTEX_variance = pm.Beta(
-                    "CTEX_variance",
-                    alpha=prior_CTEX_variance[0],
-                    beta=prior_CTEX_variance[1],
+                # CTEX sigma (shape: clouds)
+                CTEX_sigma = pm.Exponential(
+                    "CTEX_sigma",
+                    scale=prior_CTEX_sigma,
                     dims="cloud",
                 )
 
-                # CTEX concentration (shape: clouds)
-                CTEX_concentration = (1.0 - CTEX_variance) / CTEX_variance
+                # CTEX log odds (shape: clouds, state)
+                CTEX_log_odds = pm.Normal(
+                    "CTEX_log_odds", mu=0.0, sigma=1.0, dims=["cloud", "state"]
+                )
 
-                # Dirichlet state fraction (shape: cloud, state)
-                weights = pm.Dirichlet(
+                # State weights (shape: cloud, state)
+                weights = pm.Deterministic(
                     "weights",
-                    a=len(self.mol_data["states"])
-                    * CTEX_weights
-                    * CTEX_concentration[:, None],
+                    pt.special.softmax(
+                        pt.log(CTEX_weights)
+                        + CTEX_sigma[:, None]
+                        / np.sqrt(len(self.mol_data["states"]))
+                        * CTEX_log_odds
+                    ),
                     dims=["cloud", "state"],
                 )
                 # Prevent weights=0
